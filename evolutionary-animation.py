@@ -25,14 +25,19 @@ calf2 = makeLeg(4, 2)
 calf3 = makeLeg(4, 2)
 calf4 = makeLeg(4, 2)
 
-# make floor
+# make bounds
 floor = makeFloor()
+wall = makeFloor()
 
 # make body
 body = makeBody()
 
 # set body
 cmds.move(0, 4, 0, body)
+
+# set wall
+cmds.rotate(0, 0, '90deg', wall)
+cmds.move(10, 10, 0, wall)
 
 #move front legs
 cmds.rotate(0, 0, '90deg', calf)
@@ -52,20 +57,23 @@ cmds.move(-2.5, 2.5, -4, calf4)
 cmds.select(floor)
 cmds.rigidBody(passive=True, b=0, solver='rigidSolver1', name='floor')  
 
+cmds.select(wall)
+cmds.rigidBody(passive=True, b=0, solver='rigidSolver1', name='wall')
+
 cmds.select(calf)
-cmds.rigidBody(active=True, b=0.02, solver='rigidSolver1', damping=0.4, name='calf')
+cmds.rigidBody(active=True, b=0, solver='rigidSolver1', damping=0.4, name='calf')
 
 cmds.select(calf2)
-cmds.rigidBody(active=True, b=0.02, solver='rigidSolver1', damping=0.4, name='calf2')
+cmds.rigidBody(active=True, b=0, solver='rigidSolver1', damping=0.4, name='calf2')
 
 cmds.select(calf3)
-cmds.rigidBody(active=True, b=0.02, solver='rigidSolver1', damping=0.4, name='calf3')
+cmds.rigidBody(active=True, b=0, solver='rigidSolver1', damping=0.4, name='calf3')
 
 cmds.select(calf4)
-cmds.rigidBody(active=True, b=0.02, solver='rigidSolver1', damping=0.4, name='calf4')
+cmds.rigidBody(active=True, b=0, solver='rigidSolver1', damping=0.4, name='calf4')
 
 cmds.select(body)
-cmds.rigidBody(active=True, solver='rigidSolver1', iv=(1,0,0), name='body')
+cmds.rigidBody(active=True, solver='rigidSolver1', iv=(12,0,0), name='body')
 
 # create joints
 
@@ -91,18 +99,12 @@ cmds.connectDynamic('calf', f='gravityField')
 cmds.connectDynamic('calf2', f='gravityField')
 cmds.connectDynamic('calf3', f='gravityField')
 cmds.connectDynamic('calf4', f='gravityField')
+cmds.connectDynamic('body', f='gravityField')
 
 # create groups
 base = cmds.group(calf, calf2, calf3, calf4, body, pin2, pin4, pin6, pin8, n='base')
+cmds.move(0,-0.5,0, base)
 
-cmds.move(0,4,0, base)
-
-for frame in range(0, 300):
-    cmds.currentTime(frame + 1)
-
-    # Move and rotate the cube
-    cmds.move(0, 4 * math.sin(math.radians(frame * 6)), 0, base)
-    cmds.setKeyframe(base)
     
 cmds.playbackOptions( loop='continuous' )
 cmds.play(w=True)
