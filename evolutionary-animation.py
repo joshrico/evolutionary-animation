@@ -73,7 +73,7 @@ cmds.select(calf4)
 cmds.rigidBody(active=True, b=0, solver='rigidSolver1', damping=0.4, name='calf4')
 
 cmds.select(body)
-cmds.rigidBody(active=True, solver='rigidSolver1', iv=(12,0,0), name='body')
+cmds.rigidBody(active=True, solver='rigidSolver1', iv=(10,0,0), name='body')
 
 # create joints
 
@@ -105,6 +105,6 @@ cmds.connectDynamic('body', f='gravityField')
 base = cmds.group(calf, calf2, calf3, calf4, body, pin2, pin4, pin6, pin8, n='base')
 cmds.move(0,-0.5,0, base)
 
-    
+
 cmds.playbackOptions( loop='continuous' )
 cmds.play(w=True)
