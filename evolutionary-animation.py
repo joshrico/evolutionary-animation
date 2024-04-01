@@ -14,8 +14,9 @@ def makeFloor():
 def makeBody():
     body = cmds.polyCube( w=8, h=4, d=7 )
     return body
+cmds.file(new=True, force=True) # make a new scene and don't ask for confirmation
 
-rigidSolver = cmds.rigidSolver(create=True, name='rigidSolver1')
+rigidSolver = cmds.rigidSolver(create=True, cu=True, sc=True, si=True, st=True, name='rigidSolver1')
 
 # make front legs
 calf = makeLeg(4, 2)
@@ -58,19 +59,19 @@ cmds.select(floor)
 cmds.rigidBody(passive=True, b=0, solver='rigidSolver1', name='floor')  
 
 cmds.select(wall)
-cmds.rigidBody(passive=True, b=0, solver='rigidSolver1', name='wall')
+cmds.rigidBody(passive=True, b=0, solver='rigidSolver1', name='wall', contactCount=True)
 
 cmds.select(calf)
-cmds.rigidBody(active=True, b=0, solver='rigidSolver1', imp=(2.5,4,4), si=(0,0,-0.2), damping=0.4, name='calf')
+cmds.rigidBody(active=True, b=0, solver='rigidSolver1', imp=(2.5,4,4), si=(0,0,-0.1), damping=0.4, name='calf')
 
 cmds.select(calf2)
-cmds.rigidBody(active=True, b=0, solver='rigidSolver1', imp=(2.5,4,-4), si=(0,0,-0.2), damping=0.4, name='calf2')
+cmds.rigidBody(active=True, b=0, solver='rigidSolver1', imp=(2.5,4,-4), si=(0,0,-0.1), damping=0.4, name='calf2')
 
 cmds.select(calf3)
-cmds.rigidBody(active=True, b=0, solver='rigidSolver1', imp=(-2.5,4,4), si=(0,0,-0.2), damping=0.4, name='calf3')
+cmds.rigidBody(active=True, b=0, solver='rigidSolver1', imp=(-2.5,4,4), si=(0,0,-0.1), damping=0.4, name='calf3')
 
 cmds.select(calf4)
-cmds.rigidBody(active=True, b=0, solver='rigidSolver1', imp=(-2.5,4,-4), si=(0,0,-0.2), damping=0.4, name='calf4')
+cmds.rigidBody(active=True, b=0, solver='rigidSolver1', imp=(-2.5,4,-4), si=(0,0,-0.1), damping=0.4, name='calf4')
 
 cmds.select(body)
 cmds.rigidBody(active=True, solver='rigidSolver1', m=25, lcm=True, iv=(0,0,0), name='body')
@@ -79,19 +80,19 @@ cmds.rigidBody(active=True, solver='rigidSolver1', m=25, lcm=True, iv=(0,0,0), n
 
 #pin = cmds.constrain('thigh', 'calf', pin=True, n='pin', p=(6,4,4))
 
-pin2 = cmds.constrain('calf', 'body', pin=True, n='pin2', p=(2.5,4,4))
+pin2 = cmds.constrain('calf', 'body', hinge=True, n='pin2', p=(2.5,4,4))
 
 #pin3 = cmds.constrain('thigh2', 'calf2', pin=True, n='pin3', p=(6,4,-4))
 
-pin4 = cmds.constrain('calf2', 'body', pin=True, n='pin4', p=(2.5,4,-4))
+pin4 = cmds.constrain('calf2', 'body', hinge=True, n='pin4', p=(2.5,4,-4))
 
 #pin5 = cmds.constrain('thigh3', 'calf3', pin=True, n='pin5', p=(-0.5,4,4))
 
-pin6 = cmds.constrain('calf3', 'body', pin=True, n='pin6', p=(-2.5,4,4))
+pin6 = cmds.constrain('calf3', 'body', hinge=True, n='pin6', p=(-2.5,4,4))
 
 #pin7 = cmds.constrain('thigh4', 'calf4', pin=True, n='pin7', p=(-0.5,4,-4))
 
-pin8 = cmds.constrain('calf4', 'body', pin=True, n='pin8', p=(-2.5,4,-4))
+pin8 = cmds.constrain('calf4', 'body', hinge=True, n='pin8', p=(-2.5,4,-4))
 
 # have gravity act as a force
 cmds.gravity(pos=(0, 0, 0), m=9.8, dx=0, dy=-1, dz=0, name='gravityField')
@@ -103,8 +104,4 @@ cmds.connectDynamic('body', f='gravityField')
 
 # create groups
 base = cmds.group(calf, calf2, calf3, calf4, body, pin2, pin4, pin6, pin8, n='base')
-cmds.move(0,-0.5,0, base)
-
-
-cmds.playbackOptions( loop='continuous' )
-cmds.play(w=True)
+cmds.move(0,0,0, base)
