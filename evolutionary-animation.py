@@ -61,19 +61,19 @@ cmds.select(wall)
 cmds.rigidBody(passive=True, b=0, solver='rigidSolver1', name='wall')
 
 cmds.select(calf)
-cmds.rigidBody(active=True, b=0, solver='rigidSolver1', damping=0.4, name='calf')
+cmds.rigidBody(active=True, b=0, solver='rigidSolver1', imp=(2.5,4,4), si=(0,0,-0.2), damping=0.4, name='calf')
 
 cmds.select(calf2)
-cmds.rigidBody(active=True, b=0, solver='rigidSolver1', damping=0.4, name='calf2')
+cmds.rigidBody(active=True, b=0, solver='rigidSolver1', imp=(2.5,4,-4), si=(0,0,-0.2), damping=0.4, name='calf2')
 
 cmds.select(calf3)
-cmds.rigidBody(active=True, b=0, solver='rigidSolver1', damping=0.4, name='calf3')
+cmds.rigidBody(active=True, b=0, solver='rigidSolver1', imp=(-2.5,4,4), si=(0,0,-0.2), damping=0.4, name='calf3')
 
 cmds.select(calf4)
-cmds.rigidBody(active=True, b=0, solver='rigidSolver1', damping=0.4, name='calf4')
+cmds.rigidBody(active=True, b=0, solver='rigidSolver1', imp=(-2.5,4,-4), si=(0,0,-0.2), damping=0.4, name='calf4')
 
 cmds.select(body)
-cmds.rigidBody(active=True, solver='rigidSolver1', iv=(10,0,0), name='body')
+cmds.rigidBody(active=True, solver='rigidSolver1', m=25, lcm=True, iv=(0,0,0), name='body')
 
 # create joints
 
