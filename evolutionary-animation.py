@@ -8,15 +8,74 @@ def makeLeg(w, h):
     return legPart
     
 def makeFloor():
-    floor = cmds.polyPlane(width=20, height=20)  
+    floor = cmds.polyPlane(width=50, height=50)  
     return floor
 
-def makeBody():
-    body = cmds.polyCube( w=8, h=4, d=7 )
+
+def makeBody(bodyW, bodyH, bodyD):
+    body = cmds.polyCube( width=bodyW, height=bodyH, depth=bodyD)
     return body
+    
+def createCreature(legW, legH, bodyW, bodyH, bodyD, spinImp, initVel, rigidS, idx, gravField):
+    legs = []
+    legPos = []
+    pins = []
+    
+    # create body and move it accordingly
+    body = makeBody(bodyW, bodyH, bodyD)
+    bodyName = 'body' + str(idx)
+    cmds.select(body)
+    cmds.rigidBody(act=True, slv=rigidS, m=25, iv=(1,0,0), n=bodyName)
+    cmds.move(0, 4, 0, body)
+    
+    # store positions into an array after calculations
+    legPos.append((((bodyW/2)-1.5), 2.5, (1/2+(bodyD/2))))
+    legPos.append((((bodyW/2)-1.5), 2.5, -(1/2+(bodyD/2))))
+    legPos.append((-((bodyW/2)-1.5), 2.5, (1/2+(bodyD/2))))
+    legPos.append((-((bodyW/2)-1.5), 2.5, -(1/2+(bodyD/2))))
+
+    # create all legs
+    for i in range(0,4):
+        legName = 'calf' + str(i)
+        pinName = 'pin' + str(i)
+        legs.append(makeLeg(legW, legH))
+        cmds.rotate(0, 0, '90deg', legs[i])
+
+        # move legs
+        cmds.move(legPos[i][0], legPos[i][1], legPos[i][2], legs[i])
+
+        # make sure each leg is a rigidBody
+        cmds.select(legs[i])
+        cmds.rigidBody(act=True, b=0, slv=rigidS, imp=legPos[i], si=(0,0,-0.1), m=5, damping=0.4, n=legName)
+
+        pins.append(cmds.constrain(legName, bodyName, hinge=True, n=pinName, p=legPos[i]))
+
+        cmds.connectDynamic(legName, f=gravField)
+
+    creature = cmds.group(body, *legs, *pins, n='creature'+str(idx))
+
+    return creature
+
+
+
+
+
 cmds.file(new=True, force=True) # make a new scene and don't ask for confirmation
 
 rigidSolver = cmds.rigidSolver(create=True, cu=True, sc=True, si=True, st=True, name='rigidSolver1')
+
+# Set the start and end times
+start_time = 0
+end_time = 300
+
+
+# make bounds
+floor = makeFloor()
+wall = makeFloor()
+
+# set wall
+cmds.rotate(0, 0, '90deg', wall)
+cmds.move(-25, 25, 0, wall)
 
 # make front legs
 calf = makeLeg(4, 2)
@@ -26,19 +85,11 @@ calf2 = makeLeg(4, 2)
 calf3 = makeLeg(4, 2)
 calf4 = makeLeg(4, 2)
 
-# make bounds
-floor = makeFloor()
-wall = makeFloor()
-
 # make body
-body = makeBody()
+body = makeBody(8, 4, 7)
 
 # set body
 cmds.move(0, 4, 0, body)
-
-# set wall
-cmds.rotate(0, 0, '90deg', wall)
-cmds.move(10, 10, 0, wall)
 
 #move front legs
 cmds.rotate(0, 0, '90deg', calf)
@@ -53,55 +104,57 @@ cmds.move(-2.5, 2.5, 4, calf3)
 cmds.move(-2.5, 2.5, -4, calf4)
 
 
-
 # set physics on each object
 cmds.select(floor)
-cmds.rigidBody(passive=True, b=0, solver='rigidSolver1', name='floor')  
+cmds.rigidBody(pas=True, b=0, slv='rigidSolver1', n='floor')  
 
 cmds.select(wall)
-cmds.rigidBody(passive=True, b=0, solver='rigidSolver1', name='wall', contactCount=True)
+cmds.rigidBody(pas=True, b=0, slv='rigidSolver1', n='wall', contactCount=True)
 
 cmds.select(calf)
-cmds.rigidBody(active=True, b=0, solver='rigidSolver1', imp=(2.5,4,4), si=(0,0,-0.1), damping=0.4, name='calf')
+cmds.rigidBody(act=True, b=0, slv='rigidSolver1', imp=(2.5,4,4), si=(0,0,-0.1), m=5, damping=0.4, n='calf')
 
 cmds.select(calf2)
-cmds.rigidBody(active=True, b=0, solver='rigidSolver1', imp=(2.5,4,-4), si=(0,0,-0.1), damping=0.4, name='calf2')
+cmds.rigidBody(act=True, b=0, slv='rigidSolver1', imp=(2.5,4,-4), si=(0,0,-0.1), m=5,  damping=0.4, n='calf10')
 
 cmds.select(calf3)
-cmds.rigidBody(active=True, b=0, solver='rigidSolver1', imp=(-2.5,4,4), si=(0,0,-0.1), damping=0.4, name='calf3')
+cmds.rigidBody(act=True, b=0, slv='rigidSolver1', imp=(-2.5,4,4), si=(0,0,-0.1), m=5,  damping=0.4, n='calf11')
 
 cmds.select(calf4)
-cmds.rigidBody(active=True, b=0, solver='rigidSolver1', imp=(-2.5,4,-4), si=(0,0,-0.1), damping=0.4, name='calf4')
+cmds.rigidBody(act=True, b=0, slv='rigidSolver1', imp=(-2.5,4,-4), si=(0,0,-0.1), m=5,  damping=0.4, n='calf4')
 
 cmds.select(body)
-cmds.rigidBody(active=True, solver='rigidSolver1', m=25, lcm=True, iv=(0,0,0), name='body')
+cmds.rigidBody(act=True, slv='rigidSolver1', m=25, iv=(0,0,0), n='body')
 
 # create joints
 
-#pin = cmds.constrain('thigh', 'calf', pin=True, n='pin', p=(6,4,4))
+pin2 = cmds.constrain('calf', 'body', hinge=True, n='pin10', p=(2.5,4,4))
 
-pin2 = cmds.constrain('calf', 'body', hinge=True, n='pin2', p=(2.5,4,4))
+pin4 = cmds.constrain('calf10', 'body', hinge=True, n='pin4', p=(2.5,4,-4))
 
-#pin3 = cmds.constrain('thigh2', 'calf2', pin=True, n='pin3', p=(6,4,-4))
-
-pin4 = cmds.constrain('calf2', 'body', hinge=True, n='pin4', p=(2.5,4,-4))
-
-#pin5 = cmds.constrain('thigh3', 'calf3', pin=True, n='pin5', p=(-0.5,4,4))
-
-pin6 = cmds.constrain('calf3', 'body', hinge=True, n='pin6', p=(-2.5,4,4))
-
-#pin7 = cmds.constrain('thigh4', 'calf4', pin=True, n='pin7', p=(-0.5,4,-4))
+pin6 = cmds.constrain('calf11', 'body', hinge=True, n='pin6', p=(-2.5,4,4))
 
 pin8 = cmds.constrain('calf4', 'body', hinge=True, n='pin8', p=(-2.5,4,-4))
 
 # have gravity act as a force
-cmds.gravity(pos=(0, 0, 0), m=9.8, dx=0, dy=-1, dz=0, name='gravityField')
+gravityField = cmds.gravity(pos=(0, 0, 0), m=9.8, dx=0, dy=-1, dz=0, name='gravityField')
 cmds.connectDynamic('calf', f='gravityField')
-cmds.connectDynamic('calf2', f='gravityField')
-cmds.connectDynamic('calf3', f='gravityField')
+cmds.connectDynamic('calf10', f='gravityField')
+cmds.connectDynamic('calf11', f='gravityField')
 cmds.connectDynamic('calf4', f='gravityField')
 cmds.connectDynamic('body', f='gravityField')
 
 # create groups
 base = cmds.group(calf, calf2, calf3, calf4, body, pin2, pin4, pin6, pin8, n='base')
 cmds.move(0,0,0, base)
+
+cmds.setAttr('body.initialVelocityX', 1)
+# cmds.setAttr('calf.spinImpulseZ', 10)
+
+# Run the animation
+cmds.playbackOptions( minTime='0sec', maxTime='15sec' )
+
+creature = createCreature(4, 2, 8, 4, 7, 0, 0, rigidSolver, 1, gravityField)
+
+# Play the animation
+cmds.play()
