@@ -7,33 +7,33 @@ import random
 def makeLeg(w, h, d):
     legPart = cmds.polyCube(width=w, height=h, depth=d)
     return legPart
-    
+
 def makeFloor():
-    floor = cmds.polyPlane(width=500, height=500)  
+    floor = cmds.polyPlane(width=500, height=500)
     return floor
 
 
 def makeBody(bodyW, bodyH, bodyD):
     body = cmds.polyCube( width=bodyW, height=bodyH, depth=bodyD)
     return body
-    
+
 def createCreature(bodyW, bodyH, bodyD, legW, legH, legD, spinImp, initVel, idx, idx2, rigidS, gravField):
     legs = []
     legPos = []
     pins = []
-    
+
     # create body and move it accordingly
     body = makeBody(bodyW, bodyH, bodyD)
     bodyName = 'body' + str(idx)
     cmds.select(body)
-    cmds.rigidBody(act=True, slv=rigidS, m=25, iv=initVel, n=bodyName)
+    cmds.rigidBody(act=True, slv=rigidS, m=20, iv=initVel, n=bodyName)
     cmds.move(0, 4, 0, body)
-    
+
     # store positions into an array after calculations
-    legPos.append((((bodyW/2)-1.5), (bodyH/3), (legD/2+(bodyD/2))))
-    legPos.append((((bodyW/2)-1.5), (bodyH/3), -(legD/2+(bodyD/2))))
-    legPos.append((-((bodyW/2)-1.5), (bodyH/3), (legD/2+(bodyD/2))))
-    legPos.append((-((bodyW/2)-1.5), (bodyH/3), -(legD/2+(bodyD/2))))
+    legPos.append((((bodyW/2)-1.5), (bodyH/6), (legD/2+(bodyD/2))))
+    legPos.append((((bodyW/2)-1.5), (bodyH/6), -(legD/2+(bodyD/2))))
+    legPos.append((-((bodyW/2)-1.5), (bodyH/6), (legD/2+(bodyD/2))))
+    legPos.append((-((bodyW/2)-1.5), (bodyH/6), -(legD/2+(bodyD/2))))
 
     # create all legs
     for i in range(0,4):
@@ -83,7 +83,7 @@ cmds.move(-250, 250, 0, wall)
 
 # set physics on each object
 cmds.select(floor)
-cmds.rigidBody(pas=True, b=0, slv='rigidSolver1', n='floor')  
+cmds.rigidBody(pas=True, b=0, slv='rigidSolver1', n='floor')
 
 cmds.select(wall)
 cmds.rigidBody(pas=True, b=0, slv='rigidSolver1', n='wall', contactCount=True)
@@ -110,7 +110,7 @@ for i in range(0,3):
         elif j == 5:
             randomNums.append(random.uniform(randomNums[1]/2,4))
         else:
-            randomNums.append(random.uniform(0, 2))
+            randomNums.append(random.uniform(1, 5))
     initialGeneration.append(randomNums)
     print(initialGeneration[i])
 
@@ -122,7 +122,7 @@ for i in range(0,3):
         initialGeneration[i][4],
         initialGeneration[i][5],
         (0, 0, -(initialGeneration[i][8])),
-        (initialGeneration[i][9], 0, 0),
+        (0, 0, 0),
         i+1,
         i*4,
         rigidSolver,
@@ -143,5 +143,25 @@ for i in range(0,3):
 # creatures.append(createCreature(8, 4, 16, 8, 14, (0,0,2), (4,0,0), 2, 4, rigidSolver, gravityField))
 # cmds.move(40, 5, 0, creatures[1])
 
+
+shift1 = cmds.getAttr('pCube1.translateX')
+shift2 = cmds.getAttr('pCube6.translateX')
+shift3 = cmds.getAttr('pCube11.translateX')
+
+print(0)
+print(shift1)
+print(shift2)
+print(shift3)
+
 # Play the animation
-cmds.play()
+cmds.playbackOptions( minTime='0sec', maxTime='10sec' )
+cmds.play(w=True)
+
+
+shift1 = cmds.getAttr('pCube1.translateX')
+shift2 = cmds.getAttr('pCube6.translateX')
+shift3 = cmds.getAttr('pCube11.translateX')
+print(12)
+print(shift1)
+print(shift2)
+print(shift3)
