@@ -5,8 +5,8 @@ import random
 import sqlite3
 import os
 
-db_path = os.path.join('D:\Code\evolutionary-animation', 'creatures.db')
-    
+db_path = os.path.join('D:\Code Projects\evolutionary-animation', 'creatures.db')
+
 
 def create_database(db_path):
     conn = sqlite3.connect(db_path)
@@ -31,7 +31,7 @@ def create_database(db_path):
 def add_polyshape(db_path, model_name, generation, body_depth, body_width, body_height, leg_width, leg_height, leg_depth, distance_traveled):
     conn = sqlite3.connect(db_path)
     c = conn.cursor()
-    c.execute('INSERT INTO polyshapes (model_name, generation, body_depth, body_width, body_height, leg_width, leg_height, leg_depth, distance_traveled) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', 
+    c.execute('INSERT INTO polyshapes (model_name, generation, body_depth, body_width, body_height, leg_width, leg_height, leg_depth, distance_traveled) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
               (model_name, generation, body_depth, body_width, body_height, leg_width, leg_height, leg_depth, distance_traveled))
     conn.commit()
     conn.close()
@@ -155,9 +155,57 @@ def play_animation():
 
     except Exception as e:
         print(f"Error during animation: {e}")
-    
 
-def create_generic_gui():
+def create_generation(rigid_solver, gravity_field):
+    print('call create_generation()')
+    initial_generation = []
+
+    for i in range(3):  # Simplified loop header
+        random_nums = []
+        for j in range(12):
+            if j < 2:
+                random_nums.append(random.uniform(8, 20))
+            elif j == 3:
+                random_nums.append(random.uniform(1, 5))
+            elif j < 5:
+                random_nums.append(random.uniform(random_nums[1] / 2, random_nums[1]))
+            elif j == 5:
+                random_nums.append(random.uniform(random_nums[1] / 2, 4))
+            else:
+                random_nums.append(random.uniform(1, 5))
+
+        initial_generation.append(random_nums)
+        print(initial_generation[i])
+
+        creature_id = createCreature(
+            initial_generation[i][0],
+            initial_generation[i][1],
+            initial_generation[i][2],
+            initial_generation[i][3],
+            initial_generation[i][4],
+            initial_generation[i][5],
+            (0, 0, -(initial_generation[i][8])),
+            (0, 0, 0),
+            i + 1,
+            i * 4,
+            rigid_solver,  # Assuming these are placeholders
+            gravity_field
+        )
+
+        # Add the creature to the database with distance traveled as 0
+        add_polyshape(db_path, creature_id, 1,  # Assuming generation 1
+                      initial_generation[i][0], initial_generation[i][1], initial_generation[i][2],
+                      initial_generation[i][3], initial_generation[i][4], initial_generation[i][5], 0)
+
+        # Move logic in Maya (assumes use of cmds, which needs to be defined/imported if using outside of Maya)
+        if i == 0:
+            cmds.move(0, initial_generation[i][4] * 2, -50, creature_id)
+        elif i == 1:
+            cmds.move(0, initial_generation[i][4] * 2, 0, creature_id)
+        else:
+            cmds.move(0, initial_generation[i][4] * 2, 50, creature_id)
+
+def create_generic_gui(rigid_solver, gravity_field):
     window_name = "EvolutionaryAnimation"  # Avoid spaces in the window name to prevent issues
     if cmds.window(window_name, query=True, exists=True):
         cmds.deleteUI(window_name, window=True)  # Ensure it's deleting a window
@@ -168,8 +216,7 @@ def create_generic_gui():
         cmds.columnLayout(adjustableColumn=True)
 
         # Buttons for different functions
-        cmds.button(label="Create Generation", command=lambda x: print('placeholder for create generation'))
-        cmds.button(label="Store Generation", command=lambda x: print('placeholder for store generation'))
+        cmds.button(label="Create Generation", command=lambda x: create_generation(rigid_solver, gravity_field))
         cmds.button(label="Test Generation", command=lambda x: play_animation())
 
         cmds.showWindow(window_name)  # Make sure to show the window
@@ -182,14 +229,8 @@ def main():
 
     create_database(db_path)
     query_polyshapes(db_path)
-    creatures = []
 
-    rigidSolver = cmds.rigidSolver(create=True, cu=True, sc=True, si=True, st=True, name='rigidSolver1')
-
-    # Set the start and end times
-    start_time = 0
-    end_time = 300
-
+    rigid_solver = cmds.rigidSolver(create=True, cu=True, sc=True, si=True, st=True, name='rigidSolver1')
 
     # make bounds
     floor = makeFloor()
@@ -202,71 +243,16 @@ def main():
 
     # set physics on each object
     cmds.select(floor)
-    cmds.rigidBody(pas=True, b=0, slv='rigidSolver1', n='floor')
+    cmds.rigidBody(pas=True, b=0, slv=rigid_solver, n='floor')
 
     cmds.select(wall)
-    cmds.rigidBody(pas=True, b=0, slv='rigidSolver1', n='wall', contactCount=True)
+    cmds.rigidBody(pas=True, b=0, slv=rigid_solver, n='wall', contactCount=True)
 
     # have gravity act as a force
-    gravityField = cmds.gravity(pos=(0, 0, 0), m=9.8, dx=0, dy=-1, dz=0, name='gravityField')
-
-
-    initialGeneration = []
-
-    for i in range(3):  # Simplified loop header
-        randomNums = []
-        for j in range(12):
-            if j < 2:
-                randomNums.append(random.uniform(8, 20))
-            elif j == 3:
-                randomNums.append(random.uniform(1, 5))
-            elif j < 5:
-                randomNums.append(random.uniform(randomNums[1] / 2, randomNums[1]))
-            elif j == 5:
-                randomNums.append(random.uniform(randomNums[1] / 2, 4))
-            else:
-                randomNums.append(random.uniform(1, 5))
-
-        initialGeneration.append(randomNums)
-        print(initialGeneration[i])
-
-        creature_id = createCreature(
-            initialGeneration[i][0],
-            initialGeneration[i][1],
-            initialGeneration[i][2],
-            initialGeneration[i][3],
-            initialGeneration[i][4],
-            initialGeneration[i][5],
-            (0, 0, -(initialGeneration[i][8])),
-            (0, 0, 0),
-            i + 1,
-            i * 4,
-            rigidSolver,  # Assuming these are placeholders
-            gravityField
-        )
-
-        # Add the creature to the database with distance traveled as 0
-        add_polyshape(db_path, creature_id, 1,  # Assuming generation 1
-                    initialGeneration[i][0], initialGeneration[i][1], initialGeneration[i][2],
-                    initialGeneration[i][3], initialGeneration[i][4], initialGeneration[i][5], 0)
-
-        # Move logic in Maya (assumes use of cmds, which needs to be defined/imported if using outside of Maya)
-        if i == 0:
-            cmds.move(0, initialGeneration[i][4] * 2, -50, creature_id)
-        elif i == 1:
-            cmds.move(0, initialGeneration[i][4] * 2, 0, creature_id)
-        else:
-            cmds.move(0, initialGeneration[i][4] * 2, 50, creature_id)
-
-
-
-    # creatures.append(createCreature(4, 2, 8, 4, 7, (0,0,-0.1), (1,0,0), 1, 0, rigidSolver, gravityField))
-    # creatures.append(createCreature(8, 4, 16, 8, 14, (0,0,2), (4,0,0), 2, 4, rigidSolver, gravityField))
-    # cmds.move(40, 5, 0, creatures[1])
-
+    gravity_field = cmds.gravity(pos=(0, 0, 0), m=9.8, dx=0, dy=-1, dz=0, name='gravityField')
 
     if not cmds.window('Evolutionary Animation', exists=True):
-        create_generic_gui()
+        create_generic_gui(rigid_solver, gravity_field)
     else:
         print("Window already exists")
 
