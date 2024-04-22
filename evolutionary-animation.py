@@ -77,7 +77,7 @@ def createCreature(bodyW, bodyH, bodyD, legW, legH, legD, spinImp, initVel, idx,
     bodyName = 'body' + str(idx)
     makePart(bodyW, bodyH, bodyD, bodyName)
     cmds.select('body'+str(idx))
-    cmds.rigidBody(act=True, slv=rigidS, m=20, iv=initVel, n='rigid'+bodyName)
+    cmds.rigidBody(act=True, slv=rigidS, m=5, iv=initVel, n='rigid'+bodyName)
     cmds.move(0, 4, 0, bodyName)
 
     # store positions into an array after calculations
@@ -99,7 +99,7 @@ def createCreature(bodyW, bodyH, bodyD, legW, legH, legD, spinImp, initVel, idx,
 
         # make sure each leg is a rigidBody
         cmds.select(legName)
-        cmds.rigidBody(act=True, b=0, slv=rigidS, imp=legPos[i], si=spinImp, m=5, damping=0.4, n='rigid'+legName)
+        cmds.rigidBody(act=True, b=0, slv=rigidS, imp=legPos[i], si=spinImp, m=5, damping=0.4, df=1, n='rigid'+legName)
 
         pins.append(cmds.constrain(legName, bodyName, hinge=True, n=pinName, p=legPos[i]))
 
@@ -110,45 +110,71 @@ def createCreature(bodyW, bodyH, bodyD, legW, legH, legD, spinImp, initVel, idx,
     return creature
 
 def play_animation():
-    print('fuck')
+    print('Starting animation...')
     gen = query_by_generation(db_path, 1)
     print(gen)
-    shift1 = cmds.getAttr(gen[0][1]+'.translateX')
-    shift2 = cmds.getAttr(gen[1][1]+'.translateX')
-    shift3 = cmds.getAttr(gen[2][1]+'.translateX')
+    # Check if we have enough items to avoid index errors
+    if len(gen) < 3:
+        print("Not enough items in generation to perform animation.")
+        return
 
-    print(0)
-    print(shift1)
-    print(shift2)
-    print(shift3)
+    try:
+        # Get initial positions
+        shift1 = cmds.getAttr('body' + str(gen[0][0]) + '.translateX')
+        shift2 = cmds.getAttr('body' + str(gen[1][0]) + '.translateX')
+        shift3 = cmds.getAttr('body' + str(gen[2][0]) + '.translateX')
 
-    # Play the animation
-    cmds.playbackOptions( minTime='0sec', maxTime='10sec' )
-    cmds.play(w=True)
+        print("Initial positions:")
+        print(shift1, shift2, shift3)
 
-    shift1 = cmds.getAttr(gen[0][1]+'.translateX')
-    shift2 = cmds.getAttr(gen[1][1]+'.translateX')
-    shift3 = cmds.getAttr(gen[2][1]+'.translateX')
-    print(12)
-    print(shift1)
-    print(shift2)
-    print(shift3)
+        # Set playback options
+        cmds.playbackOptions(minTime='0sec', maxTime='10sec', animationStartTime='0sec', animationEndTime='10sec', loop='once')
+
+        # Reset current time to the start
+        cmds.currentTime('0sec', edit=True)
+
+        # Play the animation
+        cmds.play(wait=True)
+
+        # After playback, get new positions
+        shift1 = cmds.getAttr('body' + str(gen[0][0]) + '.translateX')
+        shift2 = cmds.getAttr('body' + str(gen[1][0]) + '.translateX')
+        shift3 = cmds.getAttr('body' + str(gen[2][0]) + '.translateX')
+
+        print("Positions after animation:")
+        print(shift1, shift2, shift3)
+
+        # insert distance traveled to database
+        update_distance_traveled(db_path, gen[0][0], shift1)
+        update_distance_traveled(db_path, gen[1][0], shift2)
+        update_distance_traveled(db_path, gen[2][0], shift3)
+
+        # check the database
+        gen = query_by_generation(db_path, 1)
+        print(gen)
+
+    except Exception as e:
+        print(f"Error during animation: {e}")
     
 
 def create_generic_gui():
-    window_name = "Evolutionary Animation"
+    window_name = "EvolutionaryAnimation"  # Avoid spaces in the window name to prevent issues
     if cmds.window(window_name, query=True, exists=True):
-        cmds.deleteUI(window_name)
+        cmds.deleteUI(window_name, window=True)  # Ensure it's deleting a window
 
-    cmds.window(window_name, title=window_name, widthHeight=(300, 150))
-    cmds.columnLayout(adjustableColumn=True)
+    # Create the window with a fresh layout
+    try:
+        cmds.window(window_name, title=window_name, widthHeight=(300, 150))
+        cmds.columnLayout(adjustableColumn=True)
 
-    # Buttons for different functions
-    cmds.button(label="Create Generation", command=lambda x: print('placeholder for create generation'))
-    cmds.button(label="Store Generation", command=lambda x: print('placeholder for store generation'))
-    cmds.button(label="Test Generation", command=lambda x: play_animation())
+        # Buttons for different functions
+        cmds.button(label="Create Generation", command=lambda x: print('placeholder for create generation'))
+        cmds.button(label="Store Generation", command=lambda x: print('placeholder for store generation'))
+        cmds.button(label="Test Generation", command=lambda x: play_animation())
 
-    cmds.showWindow(window_name)
+        cmds.showWindow(window_name)  # Make sure to show the window
+    except Exception as e:
+        print(f"Error creating GUI: {e}")
 
 
 def main():
@@ -190,8 +216,10 @@ def main():
     for i in range(3):  # Simplified loop header
         randomNums = []
         for j in range(12):
-            if j < 3:
+            if j < 2:
                 randomNums.append(random.uniform(8, 20))
+            elif j == 3:
+                randomNums.append(random.uniform(1, 5))
             elif j < 5:
                 randomNums.append(random.uniform(randomNums[1] / 2, randomNums[1]))
             elif j == 5:
@@ -237,7 +265,10 @@ def main():
     # cmds.move(40, 5, 0, creatures[1])
 
 
-    create_generic_gui()
+    if not cmds.window('Evolutionary Animation', exists=True):
+        create_generic_gui()
+    else:
+        print("Window already exists")
 
     print(query_polyshapes(db_path))
 
