@@ -1,12 +1,9 @@
-# import deap
 import maya.cmds as cmds
-import math
 import random
 import sqlite3
 import os
 
 db_path = os.path.join('D:\Code Projects\evolutionary-animation', 'creatures.db')
-
 
 def create_database(db_path):
     conn = sqlite3.connect(db_path)
@@ -73,13 +70,15 @@ def query_by_generation(db_path, generation):
     conn.close()
     return results
 
-def get_highest_generation(db_path):
-    """
-    Retrieves the highest generation number from the database.
+def query_by_distance_traveled(db_path, generation):
+    conn = sqlite3.connect(db_path)
+    c = conn.cursor()
+    c.execute('SELECT distance_traveled FROM polyshapes WHERE generation = ?', (generation,))
+    results = c.fetchall()
+    conn.close()
+    return results
 
-    :param db_path: The file path to the SQLite database.
-    :return: The highest generation number or 0 if no data is found.
-    """
+def get_highest_generation(db_path):
     conn = sqlite3.connect(db_path)
     c = conn.cursor()
 
@@ -138,7 +137,7 @@ def createCreature(bodyW, bodyH, bodyD, legW, legH, legD, spinImp, initVel, idx,
 
         # make sure each leg is a rigidBody
         cmds.select(legName)
-        cmds.rigidBody(act=True, b=0, slv=rigidS, imp=legPos[i], si=spinImp, m=5, damping=0.4, df=1, n='rigid'+legName)
+        cmds.rigidBody(act=True, b=0, slv=rigidS, imp=legPos[i], si=spinImp, m=1, damping=0.4, df=1, n='rigid'+legName)
 
         pins.append(cmds.constrain(legName, bodyName, hinge=True, n=pinName, p=legPos[i]))
 
@@ -201,6 +200,15 @@ def play_animation():
         gen = query_by_generation(db_path, get_highest_generation(db_path))
         print(gen)
 
+        fit = []
+        # print(query_by_distance_traveled(db_path, get_highest_generation(db_path)))
+        fit.append(fitness(shift1))
+        fit.append(fitness(shift2))
+        fit.append(fitness(shift3))
+
+        print(fit)
+        print(min(fit))
+
     except Exception as e:
         print(f"Error during animation: {e}")
 
@@ -211,6 +219,12 @@ def reset():
             cmds.delete(creature[1])
         else:
             print(f"Group '{creature}' does not exist.")
+
+def fitness(distance_traveled):
+    if distance_traveled == 0:
+        return 9999
+    else:
+        return abs(1/distance_traveled)
 
 def create_generation(rigid_solver, gravity_field):
     print('call create_generation()')
@@ -279,7 +293,6 @@ def create_generic_gui(rigid_solver, gravity_field):
         cmds.showWindow(window_name)  # Make sure to show the window
     except Exception as e:
         print(f"Error creating GUI: {e}")
-
 
 def main():
     cmds.file(new=True, force=True) # make a new scene and don't ask for confirmation
