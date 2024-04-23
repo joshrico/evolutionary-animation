@@ -31,9 +31,23 @@ def create_database(db_path):
 def add_polyshape(db_path, model_name, generation, body_depth, body_width, body_height, leg_width, leg_height, leg_depth, distance_traveled):
     conn = sqlite3.connect(db_path)
     c = conn.cursor()
-    c.execute('INSERT INTO polyshapes (model_name, generation, body_depth, body_width, body_height, leg_width, leg_height, leg_depth, distance_traveled) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-              (model_name, generation, body_depth, body_width, body_height, leg_width, leg_height, leg_depth, distance_traveled))
-    conn.commit()
+
+    # Check how many entries exist for this generation
+    c.execute('SELECT COUNT(*) FROM polyshapes WHERE generation = ?', (generation,))
+    count = c.fetchone()[0]
+
+    if count < 3:
+        # Insert new creature if fewer than 3 exist
+        c.execute('''
+            INSERT INTO polyshapes (model_name, generation, body_depth, body_width, body_height, leg_width, leg_height, leg_depth, distance_traveled)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (model_name, generation, body_depth, body_width, body_height, leg_width, leg_height, leg_depth, distance_traveled))
+        conn.commit()
+        print(f"Creature added to generation {generation}.")
+    else:
+        print(f"Generation {generation} already has 3 creatures.")
+        add_polyshape(db_path, model_name, generation+1, body_depth, body_width, body_height, leg_width, leg_height, leg_depth, distance_traveled)
+
     conn.close()
 
 def query_polyshapes(db_path):
@@ -58,6 +72,31 @@ def query_by_generation(db_path, generation):
     results = c.fetchall()
     conn.close()
     return results
+
+def get_highest_generation(db_path):
+    """
+    Retrieves the highest generation number from the database.
+
+    :param db_path: The file path to the SQLite database.
+    :return: The highest generation number or 0 if no data is found.
+    """
+    conn = sqlite3.connect(db_path)
+    c = conn.cursor()
+
+    try:
+        c.execute('SELECT MAX(generation) FROM polyshapes;')
+        max_generation = c.fetchone()[0]
+
+        # If there are no entries, max_generation will be None
+        if max_generation is None:
+            max_generation = 0
+
+        return max_generation
+    except sqlite3.Error as e:
+        print(f"An error occurred: {e}")
+        return None
+    finally:
+        conn.close()
 
 def makePart(w, h, d, name):
     part = cmds.polyCube(width=w, height=h, depth=d)
@@ -111,7 +150,7 @@ def createCreature(bodyW, bodyH, bodyD, legW, legH, legD, spinImp, initVel, idx,
 
 def play_animation():
     print('Starting animation...')
-    gen = query_by_generation(db_path, 1)
+    gen = query_by_generation(db_path, get_highest_generation(db_path))
     print(gen)
     # Check if we have enough items to avoid index errors
     if len(gen) < 3:
@@ -119,10 +158,15 @@ def play_animation():
         return
 
     try:
-        # Get initial positions
-        shift1 = cmds.getAttr('body' + str(gen[0][0]) + '.translateX')
-        shift2 = cmds.getAttr('body' + str(gen[1][0]) + '.translateX')
-        shift3 = cmds.getAttr('body' + str(gen[2][0]) + '.translateX')
+        # # Get initial positions
+        # shift1 = cmds.getAttr('body' + str(gen[0][0]) + '.translateX')
+        # shift2 = cmds.getAttr('body' + str(gen[1][0]) + '.translateX')
+        # shift3 = cmds.getAttr('body' + str(gen[2][0]) + '.translateX')
+
+        shift1 = cmds.getAttr('body1.translateX')
+        shift2 = cmds.getAttr('body2.translateX')
+        shift3 = cmds.getAttr('body3.translateX')
+
 
         print("Initial positions:")
         print(shift1, shift2, shift3)
@@ -137,9 +181,13 @@ def play_animation():
         cmds.play(wait=True)
 
         # After playback, get new positions
-        shift1 = cmds.getAttr('body' + str(gen[0][0]) + '.translateX')
-        shift2 = cmds.getAttr('body' + str(gen[1][0]) + '.translateX')
-        shift3 = cmds.getAttr('body' + str(gen[2][0]) + '.translateX')
+        # shift1 = cmds.getAttr('body' + str(gen[0][0]) + '.translateX')
+        # shift2 = cmds.getAttr('body' + str(gen[1][0]) + '.translateX')
+        # shift3 = cmds.getAttr('body' + str(gen[2][0]) + '.translateX')
+
+        shift1 = cmds.getAttr('body1.translateX')
+        shift2 = cmds.getAttr('body2.translateX')
+        shift3 = cmds.getAttr('body3.translateX')
 
         print("Positions after animation:")
         print(shift1, shift2, shift3)
@@ -150,11 +198,19 @@ def play_animation():
         update_distance_traveled(db_path, gen[2][0], shift3)
 
         # check the database
-        gen = query_by_generation(db_path, 1)
+        gen = query_by_generation(db_path, get_highest_generation(db_path))
         print(gen)
 
     except Exception as e:
         print(f"Error during animation: {e}")
+
+def reset():
+    gen = query_by_generation(db_path, 1)
+    for creature in gen:
+        if cmds.objExists(creature[1]):
+            cmds.delete(creature[1])
+        else:
+            print(f"Group '{creature}' does not exist.")
 
 def create_generation(rigid_solver, gravity_field):
     print('call create_generation()')
@@ -218,6 +274,7 @@ def create_generic_gui(rigid_solver, gravity_field):
         # Buttons for different functions
         cmds.button(label="Create Generation", command=lambda x: create_generation(rigid_solver, gravity_field))
         cmds.button(label="Test Generation", command=lambda x: play_animation())
+        cmds.button(label="Reset Scene", command=lambda x: print(reset()))
 
         cmds.showWindow(window_name)  # Make sure to show the window
     except Exception as e:
