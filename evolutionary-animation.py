@@ -19,32 +19,30 @@ def create_database(db_path):
             leg_width REAL,
             leg_height REAL,
             leg_depth REAL,
-            distance_traveled REAL
+            distance_traveled REAL,
+            parent1_id INTEGER,
+            parent2_id INTEGER,
+            FOREIGN KEY(parent1_id) REFERENCES polyshapes(id),
+            FOREIGN KEY(parent2_id) REFERENCES polyshapes(id)
         );
     ''')
     conn.commit()
     conn.close()
 
-def add_polyshape(db_path, model_name, generation, body_depth, body_width, body_height, leg_width, leg_height, leg_depth, distance_traveled):
+def add_polyshape(db_path, model_name, generation, body_depth, body_width, body_height, leg_width, leg_height, leg_depth, distance_traveled, parent1_id=None, parent2_id=None):
     conn = sqlite3.connect(db_path)
     c = conn.cursor()
 
-    # Check how many entries exist for this generation
-    c.execute('SELECT COUNT(*) FROM polyshapes WHERE generation = ?', (generation,))
-    count = c.fetchone()[0]
+    # Ensure first generation creatures don't have parents
+    if generation == 1:
+        parent1_id, parent2_id = None, None
 
-    if count < 3:
-        # Insert new creature if fewer than 3 exist
-        c.execute('''
-            INSERT INTO polyshapes (model_name, generation, body_depth, body_width, body_height, leg_width, leg_height, leg_depth, distance_traveled)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (model_name, generation, body_depth, body_width, body_height, leg_width, leg_height, leg_depth, distance_traveled))
-        conn.commit()
-        print(f"Creature added to generation {generation}.")
-    else:
-        print(f"Generation {generation} already has 3 creatures.")
-        add_polyshape(db_path, model_name, generation+1, body_depth, body_width, body_height, leg_width, leg_height, leg_depth, distance_traveled)
-
+    c.execute('''
+        INSERT INTO polyshapes (model_name, generation, body_depth, body_width, body_height, leg_width, leg_height, leg_depth, distance_traveled, parent1_id, parent2_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (model_name, generation, body_depth, body_width, body_height, leg_width, leg_height, leg_depth, distance_traveled, parent1_id, parent2_id))
+    conn.commit()
+    print(f"Creature added to generation {generation} with model name {model_name}.")
     conn.close()
 
 def query_polyshapes(db_path):
@@ -61,6 +59,20 @@ def update_distance_traveled(db_path, polyshape_id, new_distance):
     c.execute('UPDATE polyshapes SET distance_traveled = ? WHERE id = ?', (new_distance, polyshape_id))
     conn.commit()
     conn.close()
+
+def get_lineage(db_path, creature_id):
+    conn = sqlite3.connect(db_path)
+    c = conn.cursor()
+    c.execute('''
+        SELECT p1.model_name AS parent1_name, p2.model_name AS parent2_name, c.model_name AS child_name
+        FROM polyshapes c
+        LEFT JOIN polyshapes p1 ON c.parent1_id = p1.id
+        LEFT JOIN polyshapes p2 ON c.parent2_id = p2.id
+        WHERE c.id = ?
+    ''', (creature_id,))
+    lineage = c.fetchone()
+    conn.close()
+    return lineage
 
 def query_by_generation(db_path, generation):
     conn = sqlite3.connect(db_path)
@@ -224,7 +236,25 @@ def fitness(distance_traveled):
     if distance_traveled == 0:
         return 9999
     else:
-        return abs(1/distance_traveled)
+        return distance_traveled ** 2
+
+def cross_breed(parent1, parent2):
+    # Example attributes to blend might include 'body_width', 'body_height', etc.
+    child = {
+        'body_depth': (parent1['body_depth'] + parent2['body_depth']) / 2,
+        'body_width': (parent1['body_width'] + parent2['body_width']) / 2,
+        'body_height': (parent1['body_height'] + parent2['body_height']) / 2,
+        # You can add more attributes as needed
+    }
+    return child
+
+def mutate(creature, mutation_rate=0.1):
+    # Randomly mutate attributes by a factor determined by mutation_rate
+    for key in creature:
+        if random.random() < mutation_rate:  # 10% chance of mutation
+            mutation_factor = random.uniform(0.9, 1.1)  # 10% decrease or increase
+            creature[key] *= mutation_factor
+    return creature
 
 def create_generation(rigid_solver, gravity_field):
     print('call create_generation()')
