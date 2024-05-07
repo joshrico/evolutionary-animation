@@ -162,9 +162,8 @@ def create_creature(body_w, body_h, body_d, leg_w, leg_h, leg_d, spin_imp, idx, 
     body_name = 'body' + str(idx)
     make_part(body_w, body_h, body_d, body_name)
     cmds.select(body_name)
-    cmds.rigidBody(act=True, slv=rigid_solver, m=5, b=0, n='rigid' + body_name)
+    cmds.rigidBody(act=True, slv=rigid_solver, m=8, b=0, n='rigid' + body_name)
     cmds.connectDynamic(body_name, f=gravity_field)
-    cmds.move(0, body_h / 2 + 1, 0, body_name)  # Position above ground slightly more than half its height
 
     legs = []
     leg_pos = []
@@ -174,6 +173,7 @@ def create_creature(body_w, body_h, body_d, leg_w, leg_h, leg_d, spin_imp, idx, 
     offsets = [1.5, -1.5]
     for x_offset in offsets:
         for z_offset in offsets:
+            # Calculate the base of each leg position
             leg_pos.append((x_offset * (body_w / 2), 0, z_offset * (body_d / 2)))
 
     # Create all legs
@@ -183,12 +183,20 @@ def create_creature(body_w, body_h, body_d, leg_w, leg_h, leg_d, spin_imp, idx, 
         make_part(leg_w, leg_h, leg_d, leg_name)
         legs.append(leg_name)
         cmds.rotate(0, 0, '90deg', leg_name)
-        cmds.move(leg_pos[i][0], leg_h / 2, leg_pos[i][2], leg_name)  # Position based on leg height
+        # Position the leg so that the top of the leg is flush with the bottom of the body
+        cmds.move(leg_pos[i][0], leg_h, leg_pos[i][2], leg_name)
 
         cmds.select(leg_name)
         cmds.rigidBody(act=True, b=0, slv=rigid_solver, imp=leg_pos[i], si=spin_imp, m=1, damping=0.4, df=1, n='rigid' + leg_name)
-        pins.append(cmds.constrain(leg_name, body_name, hinge=True, n=pin_name, p=leg_pos[i]))
+        
+        # Calculate pin position at the top of the legs
+        pin_position = (leg_pos[i][0], leg_h, leg_pos[i][2])
+        pins.append(cmds.constrain(leg_name, body_name, hinge=True, n=pin_name, p=pin_position))
         cmds.connectDynamic(leg_name, f=gravity_field)
+
+    # Position the body above the legs
+    body_elevation = leg_h + 0.5  # Ensure the body is positioned above the legs by a small clearance
+    cmds.move(0, body_elevation, 0, body_name)
 
     # Group all components into a single creature entity
     creature = cmds.group(body_name, *legs, *pins, n='creature' + str(idx))
@@ -252,11 +260,11 @@ def create_generation(rigid_solver, gravity_field):
         random_nums = []
         for j in range(12):
             if j < 3:
-                random_nums.append(random.uniform(1, 5))
+                random_nums.append(random.uniform(4, 8))
             elif j < 5:
-                random_nums.append(random.uniform(random_nums[1] / 2, random_nums[1]))
+                random_nums.append(random.uniform(random_nums[1], random_nums[1]*1.5))
             elif j == 5:
-                random_nums.append(random.uniform(random_nums[1] / 2, 4))
+                random_nums.append(random.uniform(random_nums[1]/2, random_nums[1]))
             else:
                 random_nums.append(random.uniform(-3.0, 3.0))
 
@@ -331,23 +339,24 @@ def select_parents(db_path):
 
 def cross_breed(parent1, parent2):
     child = {
-        'body_width': (parent1['body_width'] + parent2['body_width']) / 2,
-        'body_height': (parent1['body_height'] + parent2['body_height']) / 2,
-        'body_depth': (parent1['body_depth'] + parent2['body_depth']) / 2,
-        'leg_width': (parent1['leg_width'] + parent2['leg_width']) / 2,
-        'leg_height': (parent1['leg_height'] + parent2['leg_height']) / 2,
-        'leg_depth': (parent1['leg_depth'] + parent2['leg_depth']) / 2,
-        'spin_imp': (parent1['spin_imp'] + parent2['spin_imp']) / 2,  # Average the spin impulse
+        'body_width': random.choice([parent1['body_width'], parent2['body_width']]),
+        'body_height': random.choice([parent1['body_height'], parent2['body_height']]),
+        'body_depth': random.choice([parent1['body_depth'], parent2['body_depth']]),
+        'leg_width': random.choice([parent1['leg_width'], parent2['leg_width']]),
+        'leg_height': random.choice([parent1['leg_height'], parent2['leg_height']]),
+        'leg_depth': random.choice([parent1['leg_depth'], parent2['leg_depth']]),
+        'spin_imp': random.choice([parent1['spin_imp'], parent2['spin_imp']]),  # Choose the spin impulse
     }
 
     return child
 
-def mutate(creature, mutation_rate=0.1):
+def mutate(creature, mutation_rate=0.2):
     # Randomly mutate attributes by a factor determined by mutation_rate
     for key in creature:
         if random.random() < mutation_rate:  # 10% chance of mutation
             mutation_factor = random.uniform(0.9, 1.1)  # 10% decrease or increase
             creature[key] *= mutation_factor
+            
     return creature
 
 def next_generation(rigid_solver, gravity_field):
@@ -411,6 +420,7 @@ def create_generic_gui(rigid_solver, gravity_field):
             # If generations exist, use next generation creation
             print('1')
             next_generation(rigid_solver, gravity_field)
+        play_animation()
 
     try:
         cmds.window(window_name, title=window_name, widthHeight=(300, 150))
