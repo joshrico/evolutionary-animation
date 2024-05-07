@@ -120,7 +120,7 @@ def make_floor():
 
 def create_creature(body_w, body_h, body_d, leg_w, leg_h, leg_d, spin_imp, idx, idx2, rigid_solver, gravity_field):
     legs = []
-    legPos = []
+    leg_pos = []
     pins = []
 
     # create body and move it accordingly
@@ -128,32 +128,33 @@ def create_creature(body_w, body_h, body_d, leg_w, leg_h, leg_d, spin_imp, idx, 
     make_part(body_w, body_h, body_d, body_name)
     cmds.select('body'+str(idx))
     cmds.rigidBody(act=True, slv=rigid_solver, m=5, n='rigid'+body_name)
+    cmds.connectDynamic(body_name, f=gravity_field)
     cmds.move(0, 4, 0, body_name)
 
     # store positions into an array after calculations
-    legPos.append((((body_w/2)-1.5), (body_h/6), (leg_d/2+(body_d/2))))
-    legPos.append((((body_w/2)-1.5), (body_h/6), -(leg_d/2+(body_d/2))))
-    legPos.append((-((body_w/2)-1.5), (body_h/6), (leg_d/2+(body_d/2))))
-    legPos.append((-((body_w/2)-1.5), (body_h/6), -(leg_d/2+(body_d/2))))
+    leg_pos.append((((body_w/2)-1.5), (body_h/6), (leg_d/2+(body_d/2))))
+    leg_pos.append((((body_w/2)-1.5), (body_h/6), -(leg_d/2+(body_d/2))))
+    leg_pos.append((-((body_w/2)-1.5), (body_h/6), (leg_d/2+(body_d/2))))
+    leg_pos.append((-((body_w/2)-1.5), (body_h/6), -(leg_d/2+(body_d/2))))
 
     # create all legs
     for i in range(0,4):
-        legName = 'calf' + str(idx2+i)
-        pinName = 'pin' + str(idx2+i)
-        make_part(leg_w, leg_h, leg_d, legName)
-        legs.append(legName)
-        cmds.rotate(0, 0, '90deg', legName)
+        leg_name = 'calf' + str(idx2+i)
+        pin_name = 'pin' + str(idx2+i)
+        make_part(leg_w, leg_h, leg_d, leg_name)
+        legs.append(leg_name)
+        cmds.rotate(0, 0, '90deg', leg_name)
 
         # move legs
-        cmds.move(legPos[i][0], legPos[i][1], legPos[i][2], legName)
+        cmds.move(leg_pos[i][0], leg_pos[i][1], leg_pos[i][2], leg_name)
 
         # make sure each leg is a rigidBody
-        cmds.select(legName)
-        cmds.rigidBody(act=True, b=0, slv=rigid_solver, imp=legPos[i], si=spin_imp, m=1, damping=0.4, df=1, n='rigid'+legName)
+        cmds.select(leg_name)
+        cmds.rigidBody(act=True, b=0, slv=rigid_solver, imp=leg_pos[i], si=spin_imp, m=1, damping=0.4, df=1, n='rigid'+leg_name)
 
-        pins.append(cmds.constrain(legName, body_name, hinge=True, n=pinName, p=legPos[i]))
+        pins.append(cmds.constrain(leg_name, body_name, hinge=True, n=pin_name, p=leg_pos[i]))
 
-        cmds.connectDynamic(legName, f=gravity_field)
+        cmds.connectDynamic(leg_name, f=gravity_field)
 
     creature = cmds.group(body_name, *legs, *pins, n='creature'+str(idx))
 
