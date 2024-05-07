@@ -33,6 +33,7 @@ def create_database(db_path):
             leg_width REAL,
             leg_height REAL,
             leg_depth REAL,
+            spin_imp REAL,
             distance_traveled REAL,
             parent1_id INTEGER,
             parent2_id INTEGER,
@@ -43,7 +44,7 @@ def create_database(db_path):
     conn.commit()
     conn.close()
 
-def add_creature(db_path, model_name, body_depth, body_width, body_height, leg_width, leg_height, leg_depth, distance_traveled, parent1_id=None, parent2_id=None):
+def add_creature(db_path, model_name, body_width, body_height, body_depth, leg_width, leg_height, leg_depth, spin_imp, distance_traveled, parent1_id=None, parent2_id=None):
     conn = sqlite3.connect(db_path)
     c = conn.cursor()
     
@@ -67,9 +68,9 @@ def add_creature(db_path, model_name, body_depth, body_width, body_height, leg_w
         parent1_id, parent2_id = None, None
 
     c.execute('''
-        INSERT INTO polyshapes (model_name, generation, body_depth, body_width, body_height, leg_width, leg_height, leg_depth, distance_traveled, parent1_id, parent2_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (model_name, generation, body_depth, body_width, body_height, leg_width, leg_height, leg_depth, distance_traveled, parent1_id, parent2_id))
+        INSERT INTO polyshapes (model_name, generation, body_depth, body_width, body_height, leg_width, leg_height, leg_depth, spin_imp, distance_traveled, parent1_id, parent2_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (model_name, generation, body_depth, body_width, body_height, leg_width, leg_height, leg_depth, spin_imp, distance_traveled, parent1_id, parent2_id))
     conn.commit()
     print(f"Creature added to generation {generation} with model name {model_name}.")
     conn.close()
@@ -278,7 +279,7 @@ def create_generation(rigid_solver, gravity_field):
 
         # Add the creature to the database with distance traveled as 0
         add_creature(db_path, creature_id, initial_generation[i][0], initial_generation[i][1], initial_generation[i][2],
-                      initial_generation[i][3], initial_generation[i][4], initial_generation[i][5], 0)
+                      initial_generation[i][3], initial_generation[i][4], initial_generation[i][5], initial_generation[i][6], 0)
 
         # Move logic in Maya (assumes use of cmds, which needs to be defined/imported if using outside of Maya)
         if i == 0:
@@ -290,10 +291,13 @@ def create_generation(rigid_solver, gravity_field):
 
 # evolutionary functions
 def fitness(distance_traveled):
-    if distance_traveled == 0:
-        return -9999
-    else:
-        return abs(distance_traveled) ** 2
+    # Handle non-numeric and None values
+    try:
+        if distance_traveled is None or distance_traveled == 0:
+            return float('-inf')  # Use negative infinity to ensure these rank last
+        return -distance_traveled ** 2  # Negative because lower distances are better, invert for sorting
+    except TypeError:
+        return float('-inf')
 
 def select_parents(db_path):
     conn = sqlite3.connect(db_path)
@@ -306,29 +310,36 @@ def select_parents(db_path):
         return []
 
     c.execute('''
-        SELECT id, body_depth, body_width, body_height, leg_width, leg_height, leg_depth, distance_traveled
+        SELECT id, body_width, body_height, body_depth, leg_width, leg_height, leg_depth, spin_imp, distance_traveled
         FROM polyshapes
         WHERE generation = ?
     ''', (current_generation,))
     creatures = c.fetchall()
     conn.close()
 
-    # Apply the fitness function to distance_traveled and sort the results
-    creatures = sorted(creatures, key=lambda x: fitness(x[7]))
+    # Print fetched data for debugging
+    print('Fetched creatures:', creatures)
 
-    # Select the top 2 performers based on the lowest fitness values
+    # Apply the fitness function to distance_traveled and sort the results
+    creatures = sorted(creatures, key=lambda x: fitness(x[8]))  # Ensure using the correct index for distance_traveled
+
+    # Print sorted creatures for debugging
+    print('Sorted creatures:', creatures)
+
+    # Select the top 2 performers based on the best fitness values (lowest if negative is better)
     return creatures[:2]
 
 def cross_breed(parent1, parent2):
     child = {
-        'body_depth': (parent1['body_depth'] + parent2['body_depth']) / 2,
         'body_width': (parent1['body_width'] + parent2['body_width']) / 2,
         'body_height': (parent1['body_height'] + parent2['body_height']) / 2,
+        'body_depth': (parent1['body_depth'] + parent2['body_depth']) / 2,
         'leg_width': (parent1['leg_width'] + parent2['leg_width']) / 2,
         'leg_height': (parent1['leg_height'] + parent2['leg_height']) / 2,
         'leg_depth': (parent1['leg_depth'] + parent2['leg_depth']) / 2,
         'spin_imp': (parent1['spin_imp'] + parent2['spin_imp']) / 2,  # Average the spin impulse
     }
+
     return child
 
 def mutate(creature, mutation_rate=0.1):
@@ -339,7 +350,7 @@ def mutate(creature, mutation_rate=0.1):
             creature[key] *= mutation_factor
     return creature
 
-def next_generation(db_path):
+def next_generation(rigid_solver, gravity_field):
     # Fetch two parents from the most recent generation
     parents = select_parents(db_path)
     if len(parents) < 2:
@@ -347,8 +358,8 @@ def next_generation(db_path):
         return
 
     # Convert tuples from SQL to dictionaries, including 'spin_imp'
-    parent1 = dict(zip(['id', 'body_depth', 'body_width', 'body_height', 'leg_width', 'leg_height', 'leg_depth', 'distance_traveled', 'spin_imp'], parents[0]))
-    parent2 = dict(zip(['id', 'body_depth', 'body_width', 'body_height', 'leg_width', 'leg_height', 'leg_depth', 'distance_traveled', 'spin_imp'], parents[1]))
+    parent1 = dict(zip(['id', 'body_width','body_height', 'body_depth', 'leg_width', 'leg_height', 'leg_depth', 'spin_imp', 'distance_traveled'], parents[0]))
+    parent2 = dict(zip(['id', 'body_width','body_height', 'body_depth', 'leg_width', 'leg_height', 'leg_depth', 'spin_imp', 'distance_traveled'], parents[1]))
 
     positions = [-50, 0, 50]  # Positions for each new creature
 
@@ -360,10 +371,21 @@ def next_generation(db_path):
         child = mutate(child)
 
         # Generate a unique model name for each new creature
-        model_name = f"creature_gen_{get_highest_generation(db_path) + 1}_num_{i + 1}"
+        model_name = create_creature(
+            child['body_width'], 
+            child['body_height'], 
+            child['body_depth'], 
+            child['leg_width'], 
+            child['leg_height'], 
+            child['leg_depth'], 
+            (0, 0, child['spin_imp']), 
+            i + 1,
+            i * 4,
+            rigid_solver,
+            gravity_field)
 
         # Add the new child to the database, including 'spin_imp'
-        add_polyshape(db_path, model_name, child['body_depth'], child['body_width'], child['body_height'], child['leg_width'], child['leg_height'], child['leg_depth'], 0, child['spin_imp'], parent1_id=parent1['id'], parent2_id=parent2['id'])
+        add_creature(db_path, model_name, child['body_width'], child['body_height'], child['body_depth'], child['leg_width'], child['leg_height'], child['leg_depth'], child['spin_imp'], 0,  parent1_id=parent1['id'], parent2_id=parent2['id'])
 
         # Position the creature in Maya using its model name and generation-specific coordinates
         body_height = child['body_height']  # Using body_height for vertical positioning
@@ -377,18 +399,18 @@ def create_generic_gui(rigid_solver, gravity_field):
     if cmds.window(window_name, query=True, exists=True):
         cmds.deleteUI(window_name, window=True)
 
-    # Determine which generation creation function to use
-    highest_generation = get_highest_generation(db_path)
-    if highest_generation == 0:
-        # If no generation exists, use initial generation creation
-        generation_func = lambda: create_generation(rigid_solver, gravity_field)
-    else:
-        # If generations exist, use next generation creation
-        generation_func = lambda: next_generation(db_path)
-
     def create_or_continue():
         reset()  # Reset the scene before creating or continuing a generation
-        generation_func()  # Call the appropriate generation function
+        # Determine which generation creation function to use dynamically
+        highest_generation = get_highest_generation(db_path)
+        if highest_generation == 0:
+            # If no generation exists, use initial generation creation
+            print('0')
+            create_generation(rigid_solver, gravity_field)
+        else:
+            # If generations exist, use next generation creation
+            print('1')
+            next_generation(rigid_solver, gravity_field)
 
     try:
         cmds.window(window_name, title=window_name, widthHeight=(300, 150))
