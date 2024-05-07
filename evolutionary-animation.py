@@ -29,7 +29,7 @@ def create_database(db_path):
     conn.commit()
     conn.close()
 
-def add_polyshape(db_path, model_name, generation, body_depth, body_width, body_height, leg_width, leg_height, leg_depth, distance_traveled, parent1_id=None, parent2_id=None):
+def add_creature(db_path, model_name, generation, body_depth, body_width, body_height, leg_width, leg_height, leg_depth, distance_traveled, parent1_id=None, parent2_id=None):
     conn = sqlite3.connect(db_path)
     c = conn.cursor()
 
@@ -45,7 +45,7 @@ def add_polyshape(db_path, model_name, generation, body_depth, body_width, body_
     print(f"Creature added to generation {generation} with model name {model_name}.")
     conn.close()
 
-def query_polyshapes(db_path):
+def query_creatures(db_path):
     conn = sqlite3.connect(db_path)
     c = conn.cursor()
     c.execute('SELECT * FROM polyshapes')
@@ -109,26 +109,26 @@ def get_highest_generation(db_path):
     finally:
         conn.close()
 
-def makePart(w, h, d, name):
+def make_part(w, h, d, name):
     part = cmds.polyCube(width=w, height=h, depth=d)
     cmds.rename(part[0], name)
     return part[0]
 
-def makeFloor():
+def make_floor():
     floor = cmds.polyPlane(width=500, height=500)
     return floor
 
-def createCreature(bodyW, bodyH, bodyD, legW, legH, legD, spinImp, initVel, idx, idx2, rigidS, gravField):
+def create_creature(bodyW, bodyH, bodyD, legW, legH, legD, spinImp, initVel, idx, idx2, rigidS, gravField):
     legs = []
     legPos = []
     pins = []
 
     # create body and move it accordingly
-    bodyName = 'body' + str(idx)
-    makePart(bodyW, bodyH, bodyD, bodyName)
+    body_name = 'body' + str(idx)
+    make_part(bodyW, bodyH, bodyD, body_name)
     cmds.select('body'+str(idx))
-    cmds.rigidBody(act=True, slv=rigidS, m=5, iv=initVel, n='rigid'+bodyName)
-    cmds.move(0, 4, 0, bodyName)
+    cmds.rigidBody(act=True, slv=rigidS, m=5, iv=initVel, n='rigid'+body_name)
+    cmds.move(0, 4, 0, body_name)
 
     # store positions into an array after calculations
     legPos.append((((bodyW/2)-1.5), (bodyH/6), (legD/2+(bodyD/2))))
@@ -140,7 +140,7 @@ def createCreature(bodyW, bodyH, bodyD, legW, legH, legD, spinImp, initVel, idx,
     for i in range(0,4):
         legName = 'calf' + str(idx2+i)
         pinName = 'pin' + str(idx2+i)
-        makePart(legW, legH, legD, legName)
+        make_part(legW, legH, legD, legName)
         legs.append(legName)
         cmds.rotate(0, 0, '90deg', legName)
 
@@ -151,11 +151,11 @@ def createCreature(bodyW, bodyH, bodyD, legW, legH, legD, spinImp, initVel, idx,
         cmds.select(legName)
         cmds.rigidBody(act=True, b=0, slv=rigidS, imp=legPos[i], si=spinImp, m=1, damping=0.4, df=1, n='rigid'+legName)
 
-        pins.append(cmds.constrain(legName, bodyName, hinge=True, n=pinName, p=legPos[i]))
+        pins.append(cmds.constrain(legName, body_name, hinge=True, n=pinName, p=legPos[i]))
 
         cmds.connectDynamic(legName, f=gravField)
 
-    creature = cmds.group(bodyName, *legs, *pins, n='creature'+str(idx))
+    creature = cmds.group(body_name, *legs, *pins, n='creature'+str(idx))
 
     return creature
 
@@ -277,7 +277,7 @@ def create_generation(rigid_solver, gravity_field):
         initial_generation.append(random_nums)
         print(initial_generation[i])
 
-        creature_id = createCreature(
+        creature_id = create_creature(
             initial_generation[i][0],
             initial_generation[i][1],
             initial_generation[i][2],
@@ -293,7 +293,7 @@ def create_generation(rigid_solver, gravity_field):
         )
 
         # Add the creature to the database with distance traveled as 0
-        add_polyshape(db_path, creature_id, 1,  # Assuming generation 1
+        add_creature(db_path, creature_id, 1,  # Assuming generation 1
                       initial_generation[i][0], initial_generation[i][1], initial_generation[i][2],
                       initial_generation[i][3], initial_generation[i][4], initial_generation[i][5], 0)
 
@@ -328,25 +328,16 @@ def main():
     cmds.file(new=True, force=True) # make a new scene and don't ask for confirmation
 
     create_database(db_path)
-    query_polyshapes(db_path)
+    query_creatures(db_path)
 
     rigid_solver = cmds.rigidSolver(create=True, cu=True, sc=True, si=True, st=True, name='rigidSolver1')
 
     # make bounds
-    floor = makeFloor()
-    wall = makeFloor()
-
-    # set wall
-    cmds.rotate(0, 0, '90deg', wall)
-    cmds.move(-250, 250, 0, wall)
-
+    floor = make_floor()
 
     # set physics on each object
     cmds.select(floor)
     cmds.rigidBody(pas=True, b=0, slv=rigid_solver, n='floor')
-
-    cmds.select(wall)
-    cmds.rigidBody(pas=True, b=0, slv=rigid_solver, n='wall', contactCount=True)
 
     # have gravity act as a force
     gravity_field = cmds.gravity(pos=(0, 0, 0), m=9.8, dx=0, dy=-1, dz=0, name='gravityField')
@@ -356,7 +347,7 @@ def main():
     else:
         print("Window already exists")
 
-    print(query_polyshapes(db_path))
+    print(query_creatures(db_path))
 
 if __name__ == "__main__":
     main()
