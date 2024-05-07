@@ -2,10 +2,24 @@ import maya.cmds as cmds
 import random
 import sqlite3
 import os
+import math
 
-db_path = os.path.join('D:\Code Projects\evolutionary-animation', 'creatures.db')
+global db_path
 
+# check if folder exists for creature database
+if os.path.exists('D:\Code\evolutionary-animation'):
+    db_path = os.path.join('D:\Code\evolutionary-animation', 'creatures.db')
+elif os.path.exists('D:\Code Projects\evolutionary-animation'):
+    db_path = os.path.join('D:\Code Projects\evolutionary-animation', 'creatures.db')
+    
+# SQLite database functions
 def create_database(db_path):
+    # Check if the database file already exists
+    if os.path.exists(db_path):
+        # Remove the existing file to start fresh
+        os.remove(db_path)
+        print(f"Existing database removed: {db_path}")
+        
     conn = sqlite3.connect(db_path)
     c = conn.cursor()
     c.execute('''
@@ -29,11 +43,26 @@ def create_database(db_path):
     conn.commit()
     conn.close()
 
-def add_creature(db_path, model_name, generation, body_depth, body_width, body_height, leg_width, leg_height, leg_depth, distance_traveled, parent1_id=None, parent2_id=None):
+def add_creature(db_path, model_name, body_depth, body_width, body_height, leg_width, leg_height, leg_depth, distance_traveled, parent1_id=None, parent2_id=None):
     conn = sqlite3.connect(db_path)
     c = conn.cursor()
+    
+    # Use the helper function to get the highest current generation
+    max_generation = get_highest_generation(db_path)
+    
+    if max_generation == 0:
+        generation = 1  # Start with the first generation if the database is empty
+    else:
+        # Check how many entries exist for the highest generation
+        c.execute('SELECT COUNT(*) FROM polyshapes WHERE generation = ?', (max_generation,))
+        count = c.fetchone()[0]
+        
+        if count < 3:
+            generation = max_generation  # Stay in the current generation if fewer than 3 entries
+        else:
+            generation = max_generation + 1  # Move to the next generation
 
-    # Ensure first generation creatures don't have parents
+    # Ensure no parents for the first generation
     if generation == 1:
         parent1_id, parent2_id = None, None
 
@@ -45,6 +74,7 @@ def add_creature(db_path, model_name, generation, body_depth, body_width, body_h
     print(f"Creature added to generation {generation} with model name {model_name}.")
     conn.close()
 
+# SQLite database queries
 def query_creatures(db_path):
     conn = sqlite3.connect(db_path)
     c = conn.cursor()
@@ -52,13 +82,6 @@ def query_creatures(db_path):
     polyshapes = c.fetchall()
     conn.close()
     return polyshapes
-
-def update_distance_traveled(db_path, polyshape_id, new_distance):
-    conn = sqlite3.connect(db_path)
-    c = conn.cursor()
-    c.execute('UPDATE polyshapes SET distance_traveled = ? WHERE id = ?', (new_distance, polyshape_id))
-    conn.commit()
-    conn.close()
 
 def get_lineage(db_path, creature_id):
     conn = sqlite3.connect(db_path)
@@ -109,6 +132,15 @@ def get_highest_generation(db_path):
     finally:
         conn.close()
 
+# SQLite database update
+def update_distance_traveled(db_path, polyshape_id, new_distance):
+    conn = sqlite3.connect(db_path)
+    c = conn.cursor()
+    c.execute('UPDATE polyshapes SET distance_traveled = ? WHERE id = ?', (new_distance, polyshape_id))
+    conn.commit()
+    conn.close()
+
+# polyshape construction
 def make_part(w, h, d, name):
     part = cmds.polyCube(width=w, height=h, depth=d)
     cmds.rename(part[0], name)
@@ -118,47 +150,50 @@ def make_floor():
     floor = cmds.polyPlane(width=500, height=500)
     return floor
 
+# procedural animation
 def create_creature(body_w, body_h, body_d, leg_w, leg_h, leg_d, spin_imp, idx, idx2, rigid_solver, gravity_field):
+    # Validate dimensions to prevent physics anomalies
+    if body_w <= 0 or body_h <= 0 or body_d <= 0 or leg_w <= 0 or leg_h <= 0 or leg_d <= 0:
+        print("Error: All dimensions must be positive.")
+        return None
+
+    # Create body and move it accordingly
+    body_name = 'body' + str(idx)
+    make_part(body_w, body_h, body_d, body_name)
+    cmds.select(body_name)
+    cmds.rigidBody(act=True, slv=rigid_solver, m=5, b=0, n='rigid' + body_name)
+    cmds.connectDynamic(body_name, f=gravity_field)
+    cmds.move(0, body_h / 2 + 1, 0, body_name)  # Position above ground slightly more than half its height
+
     legs = []
     leg_pos = []
     pins = []
 
-    # create body and move it accordingly
-    body_name = 'body' + str(idx)
-    make_part(body_w, body_h, body_d, body_name)
-    cmds.select('body'+str(idx))
-    cmds.rigidBody(act=True, slv=rigid_solver, m=5, n='rigid'+body_name)
-    cmds.connectDynamic(body_name, f=gravity_field)
-    cmds.move(0, 4, 0, body_name)
+    # Calculate leg positions to avoid interpenetration
+    offsets = [1.5, -1.5]
+    for x_offset in offsets:
+        for z_offset in offsets:
+            leg_pos.append((x_offset * (body_w / 2), 0, z_offset * (body_d / 2)))
 
-    # store positions into an array after calculations
-    leg_pos.append((((body_w/2)-1.5), (body_h/6), (leg_d/2+(body_d/2))))
-    leg_pos.append((((body_w/2)-1.5), (body_h/6), -(leg_d/2+(body_d/2))))
-    leg_pos.append((-((body_w/2)-1.5), (body_h/6), (leg_d/2+(body_d/2))))
-    leg_pos.append((-((body_w/2)-1.5), (body_h/6), -(leg_d/2+(body_d/2))))
-
-    # create all legs
-    for i in range(0,4):
-        leg_name = 'calf' + str(idx2+i)
-        pin_name = 'pin' + str(idx2+i)
+    # Create all legs
+    for i in range(4):  # Four legs
+        leg_name = 'calf' + str(idx2 + i)
+        pin_name = 'pin' + str(idx2 + i)
         make_part(leg_w, leg_h, leg_d, leg_name)
         legs.append(leg_name)
         cmds.rotate(0, 0, '90deg', leg_name)
+        cmds.move(leg_pos[i][0], leg_h / 2, leg_pos[i][2], leg_name)  # Position based on leg height
 
-        # move legs
-        cmds.move(leg_pos[i][0], leg_pos[i][1], leg_pos[i][2], leg_name)
-
-        # make sure each leg is a rigidBody
         cmds.select(leg_name)
-        cmds.rigidBody(act=True, b=0, slv=rigid_solver, imp=leg_pos[i], si=spin_imp, m=1, damping=0.4, df=1, n='rigid'+leg_name)
-
+        cmds.rigidBody(act=True, b=0, slv=rigid_solver, imp=leg_pos[i], si=spin_imp, m=1, damping=0.4, df=1, n='rigid' + leg_name)
         pins.append(cmds.constrain(leg_name, body_name, hinge=True, n=pin_name, p=leg_pos[i]))
-
         cmds.connectDynamic(leg_name, f=gravity_field)
 
-    creature = cmds.group(body_name, *legs, *pins, n='creature'+str(idx))
+    # Group all components into a single creature entity
+    creature = cmds.group(body_name, *legs, *pins, n='creature' + str(idx))
 
     return creature
+
 
 def play_animation():
     print('Starting animation...')
@@ -170,19 +205,6 @@ def play_animation():
         return
 
     try:
-        # # Get initial positions
-        # shift1 = cmds.getAttr('body' + str(gen[0][0]) + '.translateX')
-        # shift2 = cmds.getAttr('body' + str(gen[1][0]) + '.translateX')
-        # shift3 = cmds.getAttr('body' + str(gen[2][0]) + '.translateX')
-
-        shift1 = cmds.getAttr('body1.translateX')
-        shift2 = cmds.getAttr('body2.translateX')
-        shift3 = cmds.getAttr('body3.translateX')
-
-
-        print("Initial positions:")
-        print(shift1, shift2, shift3)
-
         # Set playback options
         cmds.playbackOptions(minTime='0sec', maxTime='10sec', animationStartTime='0sec', animationEndTime='10sec', loop='once')
 
@@ -192,22 +214,10 @@ def play_animation():
         # Play the animation
         cmds.play(wait=True)
 
-        # After playback, get new positions
-        # shift1 = cmds.getAttr('body' + str(gen[0][0]) + '.translateX')
-        # shift2 = cmds.getAttr('body' + str(gen[1][0]) + '.translateX')
-        # shift3 = cmds.getAttr('body' + str(gen[2][0]) + '.translateX')
-
-        shift1 = cmds.getAttr('body1.translateX')
-        shift2 = cmds.getAttr('body2.translateX')
-        shift3 = cmds.getAttr('body3.translateX')
-
-        print("Positions after animation:")
-        print(shift1, shift2, shift3)
-
         # insert distance traveled to database
-        update_distance_traveled(db_path, gen[0][0], shift1)
-        update_distance_traveled(db_path, gen[1][0], shift2)
-        update_distance_traveled(db_path, gen[2][0], shift3)
+        update_distance_traveled(db_path, gen[0][0], cmds.getAttr('body1.translateX'))
+        update_distance_traveled(db_path, gen[1][0], cmds.getAttr('body2.translateX'))
+        update_distance_traveled(db_path, gen[2][0], cmds.getAttr('body3.translateX'))
 
         # check the database
         gen = query_by_generation(db_path, get_highest_generation(db_path))
@@ -215,12 +225,12 @@ def play_animation():
 
         fit = []
         # print(query_by_distance_traveled(db_path, get_highest_generation(db_path)))
-        fit.append(fitness(shift1))
-        fit.append(fitness(shift2))
-        fit.append(fitness(shift3))
+        fit.append(fitness(cmds.getAttr('body1.translateX')))
+        fit.append(fitness(cmds.getAttr('body2.translateX')))
+        fit.append(fitness(cmds.getAttr('body3.translateX')))
 
         print(fit)
-        print(min(fit))
+        print(max(fit))
 
     except Exception as e:
         print(f"Error during animation: {e}")
@@ -233,30 +243,6 @@ def reset():
         else:
             print(f"Group '{creature}' does not exist.")
 
-def fitness(distance_traveled):
-    if distance_traveled == 0:
-        return 9999
-    else:
-        return distance_traveled ** 2
-
-def cross_breed(parent1, parent2):
-    # Example attributes to blend might include 'body_width', 'body_height', etc.
-    child = {
-        'body_depth': (parent1['body_depth'] + parent2['body_depth']) / 2,
-        'body_width': (parent1['body_width'] + parent2['body_width']) / 2,
-        'body_height': (parent1['body_height'] + parent2['body_height']) / 2,
-        # You can add more attributes as needed
-    }
-    return child
-
-def mutate(creature, mutation_rate=0.1):
-    # Randomly mutate attributes by a factor determined by mutation_rate
-    for key in creature:
-        if random.random() < mutation_rate:  # 10% chance of mutation
-            mutation_factor = random.uniform(0.9, 1.1)  # 10% decrease or increase
-            creature[key] *= mutation_factor
-    return creature
-
 def create_generation(rigid_solver, gravity_field):
     print('call create_generation()')
     initial_generation = []
@@ -264,16 +250,14 @@ def create_generation(rigid_solver, gravity_field):
     for i in range(3):  # Simplified loop header
         random_nums = []
         for j in range(12):
-            if j < 2:
-                random_nums.append(random.uniform(8, 20))
-            elif j == 3:
+            if j < 3:
                 random_nums.append(random.uniform(1, 5))
             elif j < 5:
                 random_nums.append(random.uniform(random_nums[1] / 2, random_nums[1]))
             elif j == 5:
                 random_nums.append(random.uniform(random_nums[1] / 2, 4))
             else:
-                random_nums.append(random.uniform(1, 5))
+                random_nums.append(random.uniform(-3.0, 3.0))
 
         initial_generation.append(random_nums)
         print(initial_generation[i])
@@ -293,37 +277,137 @@ def create_generation(rigid_solver, gravity_field):
         )
 
         # Add the creature to the database with distance traveled as 0
-        add_creature(db_path, creature_id, 1,  # Assuming generation 1
-                      initial_generation[i][0], initial_generation[i][1], initial_generation[i][2],
+        add_creature(db_path, creature_id, initial_generation[i][0], initial_generation[i][1], initial_generation[i][2],
                       initial_generation[i][3], initial_generation[i][4], initial_generation[i][5], 0)
 
         # Move logic in Maya (assumes use of cmds, which needs to be defined/imported if using outside of Maya)
         if i == 0:
-            cmds.move(0, initial_generation[i][4] * 2, -50, creature_id)
+            cmds.move(0, initial_generation[i][1], -50, creature_id)
         elif i == 1:
-            cmds.move(0, initial_generation[i][4] * 2, 0, creature_id)
+            cmds.move(0, initial_generation[i][1], 0, creature_id)
         else:
-            cmds.move(0, initial_generation[i][4] * 2, 50, creature_id)
+            cmds.move(0, initial_generation[i][1], 50, creature_id)
+
+# evolutionary functions
+def fitness(distance_traveled):
+    if distance_traveled == 0:
+        return -9999
+    else:
+        return abs(distance_traveled) ** 2
+
+def select_parents(db_path):
+    conn = sqlite3.connect(db_path)
+    c = conn.cursor()
+
+    # Automatically determine the most recent generation
+    current_generation = get_highest_generation(db_path)
+    if current_generation == 0:
+        print("No generations found in the database.")
+        return []
+
+    c.execute('''
+        SELECT id, body_depth, body_width, body_height, leg_width, leg_height, leg_depth, distance_traveled
+        FROM polyshapes
+        WHERE generation = ?
+    ''', (current_generation,))
+    creatures = c.fetchall()
+    conn.close()
+
+    # Apply the fitness function to distance_traveled and sort the results
+    creatures = sorted(creatures, key=lambda x: fitness(x[7]))
+
+    # Select the top 2 performers based on the lowest fitness values
+    return creatures[:2]
+
+def cross_breed(parent1, parent2):
+    child = {
+        'body_depth': (parent1['body_depth'] + parent2['body_depth']) / 2,
+        'body_width': (parent1['body_width'] + parent2['body_width']) / 2,
+        'body_height': (parent1['body_height'] + parent2['body_height']) / 2,
+        'leg_width': (parent1['leg_width'] + parent2['leg_width']) / 2,
+        'leg_height': (parent1['leg_height'] + parent2['leg_height']) / 2,
+        'leg_depth': (parent1['leg_depth'] + parent2['leg_depth']) / 2,
+        'spin_imp': (parent1['spin_imp'] + parent2['spin_imp']) / 2,  # Average the spin impulse
+    }
+    return child
+
+def mutate(creature, mutation_rate=0.1):
+    # Randomly mutate attributes by a factor determined by mutation_rate
+    for key in creature:
+        if random.random() < mutation_rate:  # 10% chance of mutation
+            mutation_factor = random.uniform(0.9, 1.1)  # 10% decrease or increase
+            creature[key] *= mutation_factor
+    return creature
+
+def next_generation(db_path):
+    # Fetch two parents from the most recent generation
+    parents = select_parents(db_path)
+    if len(parents) < 2:
+        print("Not enough parents to perform crossbreeding.")
+        return
+
+    # Convert tuples from SQL to dictionaries, including 'spin_imp'
+    parent1 = dict(zip(['id', 'body_depth', 'body_width', 'body_height', 'leg_width', 'leg_height', 'leg_depth', 'distance_traveled', 'spin_imp'], parents[0]))
+    parent2 = dict(zip(['id', 'body_depth', 'body_width', 'body_height', 'leg_width', 'leg_height', 'leg_depth', 'distance_traveled', 'spin_imp'], parents[1]))
+
+    positions = [-50, 0, 50]  # Positions for each new creature
+
+    for i in range(3):  # Create three new creatures
+        # Create a child by crossbreeding
+        child = cross_breed(parent1, parent2)
+
+        # Mutate the child to introduce variability
+        child = mutate(child)
+
+        # Generate a unique model name for each new creature
+        model_name = f"creature_gen_{get_highest_generation(db_path) + 1}_num_{i + 1}"
+
+        # Add the new child to the database, including 'spin_imp'
+        add_polyshape(db_path, model_name, child['body_depth'], child['body_width'], child['body_height'], child['leg_width'], child['leg_height'], child['leg_depth'], 0, child['spin_imp'], parent1_id=parent1['id'], parent2_id=parent2['id'])
+
+        # Position the creature in Maya using its model name and generation-specific coordinates
+        body_height = child['body_height']  # Using body_height for vertical positioning
+        cmds.move(0, body_height, positions[i], model_name)
+
+        print(f"New creature created and positioned: {model_name}")
+
 
 def create_generic_gui(rigid_solver, gravity_field):
-    window_name = "EvolutionaryAnimation"  # Avoid spaces in the window name to prevent issues
+    window_name = "EvolutionaryAnimation"
     if cmds.window(window_name, query=True, exists=True):
-        cmds.deleteUI(window_name, window=True)  # Ensure it's deleting a window
+        cmds.deleteUI(window_name, window=True)
 
-    # Create the window with a fresh layout
+    # Determine which generation creation function to use
+    highest_generation = get_highest_generation(db_path)
+    if highest_generation == 0:
+        # If no generation exists, use initial generation creation
+        generation_func = lambda: create_generation(rigid_solver, gravity_field)
+    else:
+        # If generations exist, use next generation creation
+        generation_func = lambda: next_generation(db_path)
+
+    def create_or_continue():
+        reset()  # Reset the scene before creating or continuing a generation
+        generation_func()  # Call the appropriate generation function
+
     try:
         cmds.window(window_name, title=window_name, widthHeight=(300, 150))
         cmds.columnLayout(adjustableColumn=True)
 
-        # Buttons for different functions
-        cmds.button(label="Create Generation", command=lambda x: create_generation(rigid_solver, gravity_field))
+        # Button to create or continue generation with scene reset
+        cmds.button(label="Create/Continue Generation", command=lambda x: create_or_continue())
+        
+        # Button to test/play generation animation
         cmds.button(label="Test Generation", command=lambda x: play_animation())
-        cmds.button(label="Reset Scene", command=lambda x: print(reset()))
+        
+        # Button to reset the scene
+        cmds.button(label="Reset Scene", command=lambda x: reset())
 
-        cmds.showWindow(window_name)  # Make sure to show the window
+        cmds.showWindow(window_name)
     except Exception as e:
         print(f"Error creating GUI: {e}")
 
+# driver code
 def main():
     cmds.file(new=True, force=True) # make a new scene and don't ask for confirmation
 
