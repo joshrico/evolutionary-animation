@@ -11,7 +11,7 @@ if os.path.exists('D:\Code\evolutionary-animation'):
     db_path = os.path.join('D:\Code\evolutionary-animation', 'creatures.db')
 elif os.path.exists('D:\Code Projects\evolutionary-animation'):
     db_path = os.path.join('D:\Code Projects\evolutionary-animation', 'creatures.db')
-    
+
 # SQLite database functions
 def create_database(db_path):
     # Check if the database file already exists
@@ -19,7 +19,7 @@ def create_database(db_path):
         # Remove the existing file to start fresh
         os.remove(db_path)
         print(f"Existing database removed: {db_path}")
-        
+
     conn = sqlite3.connect(db_path)
     c = conn.cursor()
     c.execute('''
@@ -27,9 +27,9 @@ def create_database(db_path):
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             model_name TEXT NOT NULL,
             generation INTEGER,
-            body_depth REAL,
             body_width REAL,
             body_height REAL,
+            body_depth REAL,
             leg_width REAL,
             leg_height REAL,
             leg_depth REAL,
@@ -47,17 +47,17 @@ def create_database(db_path):
 def add_creature(db_path, model_name, body_width, body_height, body_depth, leg_width, leg_height, leg_depth, spin_imp, distance_traveled, parent1_id=None, parent2_id=None):
     conn = sqlite3.connect(db_path)
     c = conn.cursor()
-    
+
     # Use the helper function to get the highest current generation
     max_generation = get_highest_generation(db_path)
-    
+
     if max_generation == 0:
         generation = 1  # Start with the first generation if the database is empty
     else:
         # Check how many entries exist for the highest generation
         c.execute('SELECT COUNT(*) FROM polyshapes WHERE generation = ?', (max_generation,))
         count = c.fetchone()[0]
-        
+
         if count < 3:
             generation = max_generation  # Stay in the current generation if fewer than 3 entries
         else:
@@ -68,7 +68,7 @@ def add_creature(db_path, model_name, body_width, body_height, body_depth, leg_w
         parent1_id, parent2_id = None, None
 
     c.execute('''
-        INSERT INTO polyshapes (model_name, generation, body_depth, body_width, body_height, leg_width, leg_height, leg_depth, spin_imp, distance_traveled, parent1_id, parent2_id)
+        INSERT INTO polyshapes (model_name, generation, body_width, body_height, body_depth, leg_width, leg_height, leg_depth, spin_imp, distance_traveled, parent1_id, parent2_id)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (model_name, generation, body_depth, body_width, body_height, leg_width, leg_height, leg_depth, spin_imp, distance_traveled, parent1_id, parent2_id))
     conn.commit()
@@ -188,7 +188,7 @@ def create_creature(body_w, body_h, body_d, leg_w, leg_h, leg_d, spin_imp, idx, 
 
         cmds.select(leg_name)
         cmds.rigidBody(act=True, b=0, slv=rigid_solver, imp=leg_pos[i], si=spin_imp, m=1, damping=0.4, df=1, n='rigid' + leg_name)
-        
+
         # Calculate pin position at the top of the legs
         pin_position = (leg_pos[i][0], leg_h, leg_pos[i][2])
         pins.append(cmds.constrain(leg_name, body_name, hinge=True, n=pin_name, p=pin_position))
@@ -356,7 +356,7 @@ def mutate(creature, mutation_rate=0.2):
         if random.random() < mutation_rate:  # 10% chance of mutation
             mutation_factor = random.uniform(0.9, 1.1)  # 10% decrease or increase
             creature[key] *= mutation_factor
-            
+
     return creature
 
 def next_generation(rigid_solver, gravity_field):
@@ -381,13 +381,13 @@ def next_generation(rigid_solver, gravity_field):
 
         # Generate a unique model name for each new creature
         model_name = create_creature(
-            child['body_width'], 
-            child['body_height'], 
-            child['body_depth'], 
-            child['leg_width'], 
-            child['leg_height'], 
-            child['leg_depth'], 
-            (0, 0, child['spin_imp']), 
+            child['body_width'],
+            child['body_height'],
+            child['body_depth'],
+            child['leg_width'],
+            child['leg_height'],
+            child['leg_depth'],
+            (0, 0, child['spin_imp']),
             i + 1,
             i * 4,
             rigid_solver,
@@ -428,10 +428,10 @@ def create_generic_gui(rigid_solver, gravity_field):
 
         # Button to create or continue generation with scene reset
         cmds.button(label="Create/Continue Generation", command=lambda x: create_or_continue())
-        
+
         # Button to test/play generation animation
         cmds.button(label="Test Generation", command=lambda x: play_animation())
-        
+
         # Button to reset the scene
         cmds.button(label="Reset Scene", command=lambda x: reset())
 
