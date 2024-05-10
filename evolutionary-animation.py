@@ -4,14 +4,6 @@ import sqlite3
 import os
 import math
 
-global db_path
-
-# check if folder exists for creature database
-if os.path.exists('D:\Code\evolutionary-animation'):
-    db_path = os.path.join('D:\Code\evolutionary-animation', 'creatures.db')
-elif os.path.exists('D:\Code Projects\evolutionary-animation'):
-    db_path = os.path.join('D:\Code Projects\evolutionary-animation', 'creatures.db')
-
 # SQLite database functions
 def create_database(db_path):
     # Check if the database file already exists
@@ -199,7 +191,7 @@ def create_creature(body_w, body_h, body_d, leg_w, leg_h, leg_d, spin_imp, idx, 
     cmds.move(0, body_elevation, 0, body_name)
 
     # Group all components into a single creature entity
-    creature = cmds.group(body_name, *legs, *pins, n='creature' + str(idx))
+    creature = cmds.group(body_name, *legs, *pins, n='creature' + str(counter))
 
     return creature
 
@@ -215,7 +207,7 @@ def play_animation():
 
     try:
         # Set playback options
-        cmds.playbackOptions(minTime='0sec', maxTime='10sec', animationStartTime='0sec', animationEndTime='10sec', loop='once')
+        cmds.playbackOptions(minTime='0sec', maxTime='15sec', animationStartTime='0sec', animationEndTime='15sec', loop='once')
 
         # Reset current time to the start
         cmds.currentTime('0sec', edit=True)
@@ -258,11 +250,11 @@ def create_generation(rigid_solver, gravity_field):
 
     for i in range(3):  # Simplified loop header
         random_nums = []
-        for j in range(12):
+        for j in range(7):
             if j < 3:
                 random_nums.append(random.uniform(4, 8))
             elif j < 5:
-                random_nums.append(random.uniform(random_nums[1], random_nums[1]*1.5))
+                random_nums.append(random.uniform(random_nums[1], random_nums[1]*1.25))
             elif j == 5:
                 random_nums.append(random.uniform(random_nums[1]/2, random_nums[1]))
             else:
@@ -278,7 +270,7 @@ def create_generation(rigid_solver, gravity_field):
             initial_generation[i][3],
             initial_generation[i][4],
             initial_generation[i][5],
-            (0, 0, -(initial_generation[i][8])),
+            (0, 0, -(initial_generation[i][6])),
             i + 1,
             i * 4,
             rigid_solver,  # Assuming these are placeholders
@@ -296,6 +288,7 @@ def create_generation(rigid_solver, gravity_field):
             cmds.move(0, initial_generation[i][1], 0, creature_id)
         else:
             cmds.move(0, initial_generation[i][1], 50, creature_id)
+        # counter += 1
 
 # evolutionary functions
 def fitness(distance_traveled):
@@ -408,18 +401,24 @@ def create_generic_gui(rigid_solver, gravity_field):
     if cmds.window(window_name, query=True, exists=True):
         cmds.deleteUI(window_name, window=True)
 
+    generation_display = None  # This will hold the UI element displaying the generation number
+
+    def update_generation_display():
+        highest_generation = get_highest_generation(db_path)
+        if generation_display is not None:
+            cmds.text(generation_display, edit=True, label=f"Current Generation: {highest_generation}")
+
     def create_or_continue():
         reset()  # Reset the scene before creating or continuing a generation
         # Determine which generation creation function to use dynamically
         highest_generation = get_highest_generation(db_path)
         if highest_generation == 0:
             # If no generation exists, use initial generation creation
-            print('0')
             create_generation(rigid_solver, gravity_field)
         else:
             # If generations exist, use next generation creation
-            print('1')
             next_generation(rigid_solver, gravity_field)
+        update_generation_display()
         play_animation()
 
     try:
@@ -429,11 +428,11 @@ def create_generic_gui(rigid_solver, gravity_field):
         # Button to create or continue generation with scene reset
         cmds.button(label="Create/Continue Generation", command=lambda x: create_or_continue())
 
-        # Button to test/play generation animation
-        cmds.button(label="Test Generation", command=lambda x: play_animation())
+        # Display current generation number
+        generation_display = cmds.text(label="Current Generation: 0")
 
-        # Button to reset the scene
-        cmds.button(label="Reset Scene", command=lambda x: reset())
+        # Update the display at GUI startup
+        update_generation_display()
 
         cmds.showWindow(window_name)
     except Exception as e:
@@ -443,6 +442,15 @@ def create_generic_gui(rigid_solver, gravity_field):
 def main():
     cmds.file(new=True, force=True) # make a new scene and don't ask for confirmation
 
+    global db_path
+    global counter
+
+    # check if folder exists for creature database
+    if os.path.exists('D:\Code\evolutionary-animation'):
+        db_path = os.path.join('D:\Code\evolutionary-animation', 'creatures.db')
+    elif os.path.exists('D:\Code Projects\evolutionary-animation'):
+        db_path = os.path.join('D:\Code Projects\evolutionary-animation', 'creatures.db')
+    counter = 1 
     create_database(db_path)
     query_creatures(db_path)
 
