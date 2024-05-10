@@ -154,7 +154,7 @@ def create_creature(body_w, body_h, body_d, leg_w, leg_h, leg_d, spin_imp, idx, 
     body_name = 'body' + str(idx)
     make_part(body_w, body_h, body_d, body_name)
     cmds.select(body_name)
-    cmds.rigidBody(act=True, slv=rigid_solver, m=8, b=0, n='rigid' + body_name)
+    cmds.rigidBody(act=True, slv=rigid_solver, m=3, b=0, n='rigid' + body_name)
     cmds.connectDynamic(body_name, f=gravity_field)
 
     legs = []
